@@ -24,6 +24,19 @@ plot_data('NonIIRatio', data, labels, 'NonIIRatio')
 plot_data('RORWA', data, labels, 'RORWA')
 plot_data('TotalDeposits', data, labels, 'TotalDeposits')
 
+fig, axes = plt.subplots(4, 1)
+deposit_ratio_names = ['CorpDemandRatio', 'CorpTimeRatio', 'RetailDemandRatio', 'RetailTimeRatio']
+for i, ax in enumerate(axes):
+    for j, cur_data in enumerate(data):
+        ax.plot(cur_data['Year'].values, cur_data[deposit_ratio_names[i]].values, label=labels[j], marker='o')
+    ax.set_title(deposit_ratio_names[i])
+    ax.legend()
+plt.tight_layout()
+
+plot_data('ProvisionCoverage', data, labels, 'ProvisionCoverage')
+plot_data('NIS', data, labels, 'NIS')
+plot_data('NIM', data, labels, 'NIM')
+
 plt.show()
 
 
