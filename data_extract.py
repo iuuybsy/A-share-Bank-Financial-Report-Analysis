@@ -3,7 +3,12 @@ import os
 
 def convert_excel_to_csv(excel_path, csv_output_path=None):
     """
-    Convert the CMB financial indicator Excel file to a CSV 2D table (year × indicators).
+    Convert the financial indicator Excel file to a CSV 2D table (year × indicators).
+    Additionally calculates:
+        - RORWA = CoreNetProfit / RWA
+        - TotalDeposits = sum of CorpDemandDeposits, CorpTimeDeposits,
+                          RetailDemandDeposits, RetailTimeDeposits
+        - Deposit ratios (each deposit item / TotalDeposits) with 2 decimal places.
 
     Parameters:
         excel_path (str): Path to the input .xlsx file.
@@ -14,6 +19,7 @@ def convert_excel_to_csv(excel_path, csv_output_path=None):
     Returns:
         pd.DataFrame: The transformed DataFrame, and the CSV file is saved.
     """
+
     # ---------- Chinese-to-English mapping dictionary ----------
     MAP = {
         "营业收入": "OperatingIncome",
@@ -87,11 +93,44 @@ def convert_excel_to_csv(excel_path, csv_output_path=None):
         all_metrics.update(d.keys())
     all_metrics = sorted(all_metrics)
 
-    # ---------- Build DataFrame ----------
+    # ---------- Build DataFrame with additional calculated fields ----------
     rows = []
+    # Deposit key names used for calculation
+    deposit_keys = ['CorpDemandDeposits', 'CorpTimeDeposits', 'RetailDemandDeposits', 'RetailTimeDeposits']
+    deposit_ratio_names = ['CorpDemandRatio', 'CorpTimeRatio', 'RetailDemandRatio', 'RetailTimeRatio']
+
     for year in sorted(data_by_year.keys()):
+        d = data_by_year[year]
         row = {"Year": year}
-        row.update({m: data_by_year[year].get(m) for m in all_metrics})
+        # Add all original metrics
+        for m in all_metrics:
+            row[m] = d.get(m)   # None if missing
+
+        # ---- 1. Calculate RORWA ----
+        core_profit = row.get('CoreNetProfit')
+        rwa = row.get('RWA')
+        if pd.notna(core_profit) and pd.notna(rwa) and rwa != 0:
+            row['RORWA'] = round(core_profit / rwa * 100, 2)
+        else:
+            row['RORWA'] = None
+
+        # ---- 2. Calculate TotalDeposits and deposit ratios ----
+        deposit_vals = [row.get(k) for k in deposit_keys]
+        # Only compute if all four deposit items are non‑missing
+        if all(pd.notna(v) for v in deposit_vals):
+            total_dep = sum(deposit_vals)
+            row['TotalDeposits'] = total_dep
+            if total_dep != 0:
+                for val, name in zip(deposit_vals, deposit_ratio_names):
+                    row[name] = round(val / total_dep * 100, 2)   # two‑decimal proportion
+            else:
+                for name in deposit_ratio_names:
+                    row[name] = None
+        else:
+            row['TotalDeposits'] = None
+            for name in deposit_ratio_names:
+                row[name] = None
+
         rows.append(row)
 
     df_out = pd.DataFrame(rows)
@@ -102,4 +141,10 @@ def convert_excel_to_csv(excel_path, csv_output_path=None):
         csv_output_path = base + "_output.csv"
 
     df_out.to_csv(csv_output_path, index=False, encoding="utf-8-sig")
-    return df_out
+    return df_out.sort_values('Year')
+
+def get_dataframe(excel_path, csv_path):
+    if os.path.exists(csv_path):
+        return pd.read_csv(csv_path)
+    else:
+        return convert_excel_to_csv(excel_path, csv_path)
