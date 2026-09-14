@@ -16,9 +16,10 @@ def main():
     df_cmb = get_dataframe("600036_CMB/600036_CMB.xlsx", "600036_CMB/cmb_financials.csv")
     df_cib = get_dataframe("601166_CIB/601166_CIB.xlsx", "601166_CIB/cib_financials.csv")
     df_cncb = get_dataframe("601998_CNCB/601998_CNCB.xlsx", "601998_CNCB/cncb_financials.csv")
+    df_icbc = get_dataframe("601398_ICBC/601398_ICBC.xlsx", "601398_ICBC/icbc_financials.csv")
 
-    data = [df_cmb, df_cib, df_cncb]
-    labels = ["CMB", "CIB", "CNCB"]
+    data = [df_cmb, df_cib, df_cncb, df_icbc]
+    labels = ["CMB", "CIB", "CNCB", "ICBC"]
 
     # ----- income and profit -----
     # plot_data("OperatingIncome", data, labels, "Operating Income")
