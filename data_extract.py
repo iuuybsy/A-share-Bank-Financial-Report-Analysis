@@ -1,145 +1,141 @@
-import pandas as pd
+# -*- coding: utf-8 -*-
+"""
+Read multiple sheets (bank codes) from bank_data.xlsx,
+reshape them into long format and save as CSV files.
+"""
+
 import os
+import pandas as pd
 
-def convert_excel_to_csv(excel_path, csv_output_path=None):
-    """
-    Convert the financial indicator Excel file to a CSV 2D table (year × indicators).
-    Additionally calculates:
-        - RORWA = CoreNetProfit / RWA
-        - TotalDeposits = sum of CorpDemandDeposits, CorpTimeDeposits,
-                          RetailDemandDeposits, RetailTimeDeposits
-        - Deposit ratios (each deposit item / TotalDeposits) with 2 decimal places.
+# ============ Configuration ============
+input_file = "data/bank_data.xlsx"
+output_dir = "data"
+os.makedirs(output_dir, exist_ok=True)
 
-    Parameters:
-        excel_path (str): Path to the input .xlsx file.
-        csv_output_path (str, optional): Path for the output CSV file. If not provided,
-                                         it will be saved as "original_filename_output.csv"
-                                         in the same directory.
+long_csv = os.path.join(output_dir, "bank_data_long.csv")
+wide_csv = os.path.join(output_dir, "bank_data_wide.csv")
 
-    Returns:
-        pd.DataFrame: The transformed DataFrame, and the CSV file is saved.
-    """
+# ============ Indicator Chinese-English mapping ============
+INDICATOR_MAP = {
+    # Profitability / earnings
+    "净息差": "NIM",
+    "净利差": "NIS",
+    "ROA": "ROA",
+    "ROE": "ROE",
+    "RORWA": "RORWA",
+    "成本收入比": "Cost-to-Income Ratio",
+    "营业收入增速": "Operating Income Growth Rate",
+    "扣非归母净利润增速": "Recurring Net Profit Growth Rate",
+    "拨备前利润增速": "Pre-provision Profit Growth Rate",
+    "非息收入占比": "NIIR",
+    # Asset quality
+    "不良贷款率": "NPL",
+    "不良生成率": "NPLG",
+    "拨备覆盖率": "PCR",
+    "拨贷比": "LLR",
+    "信贷成本": "Credit Cost",
+    # Capital adequacy
+    "资本充足率": "CAR",
+    "核心一级资本充足率": "CET1 CAR",
+    "杠杆率": "LR",
+    # Scale / growth
+    "总资产增速": "Total Assets Growth Rate",
+    "贷款增速": "Loan Growth Rate",
+    "存款增速": "Deposit Growth Rate",
+    "存款成本率": "Deposit Cost Rate",
+    "贷款收益率": "Loan Yield",
+    # Per share / dividends
+    "EPS": "EPS",
+    "BPS": "BPS",
+    "股息率": "Dividend Yield",
+}
 
-    # ---------- Chinese-to-English mapping dictionary ----------
-    MAP = {
-        "营业收入": "OperatingIncome",
-        "扣非归母净利润": "CoreNetProfit",
-        "稀释每股收益": "DilutedEPS",
-        "扣非每股收益": "CoreEPS",
-        "平均资产收益率": "ROA",
-        "扣非加权平均净资产收益率": "CoreROE",
-        "总资产": "TotalAssets",
-        "贷款和垫款总额": "GrossLoans",
-        "不良贷款": "NPL",
-        "贷款损失准备": "LoanLossReserve",
-        "总负债": "TotalLiabilities",
-        "公司活期存款": "CorpDemandDeposits",
-        "公司定期存款": "CorpTimeDeposits",
-        "零售活期存款": "RetailDemandDeposits",
-        "零售定期存款": "RetailTimeDeposits",
-        "股东权益": "Equity",
-        "每股净资产": "NAVPS",
-        "资本净额": "TotalCapital",
-        "核心一级资本净额": "CoreTier1Capital",
-        "风险加权资产": "RWA",
-        "净利差": "NIS",
-        "净利息收益率": "NIM",
-        "净利息收入占比": "NIIRatio",
-        "非利息收入占比": "NonIIRatio",
-        "成本收入比": "CostIncomeRatio",
-        "不良贷款率": "NPLRatio",
-        "拨备覆盖率": "ProvisionCoverage",
-        "信用成本": "CreditCost",
-        "核心一级资本充足率": "CET1",
-        "一级资本充足率": "Tier1CAR",
-        "资本充足率": "CAR",
-        "正常类贷款迁徙率": "NormalMigRate",
-        "关注类贷款迁徙率": "SpecialMigRate",
-        "次级类贷款迁徙率": "SubstandardMigRate",
-        "可疑类贷款迁徙率": "DoubtfulMigRate",
-    }
+# ============ Bank mapping: sheet name -> (stock code, abbreviation) ============
+# Modify this mapping based on the actual sheet names in your data.
+BANK_MAP = {
+    "招商银行": ("600036", "CMD"),
+    "600036": ("600036", "CMD"),
+    "工商银行": ("601398", "ICBC"),
+    "601398": ("601398", "ICBC"),
+    "兴业银行": ("601166", "CIB"),
+    "601166": ("601166", "CIB"),
+    "中信银行": ("601998", "CITIC"),
+    "601998": ("601998", "CITIC"),
+    "华夏银行": ("600015", "HXB"),
+    "600015": ("600015", "HXB"),
+}
 
-    # ---------- Read all worksheets ----------
-    xl = pd.ExcelFile(excel_path)
-    data_by_year = {}
 
-    for sheet_name in xl.sheet_names:
-        # The sheet name is the year (e.g., "2025")
-        try:
-            year = int(sheet_name)
-        except ValueError:
-            continue  # Skip sheets not named with a numeric year
+def get_indicator_en(name):
+    """Convert a Chinese indicator name to its English abbreviation;
+    return the original name if it is not in the mapping."""
+    return INDICATOR_MAP.get(str(name), str(name))
 
-        df = pd.read_excel(excel_path, sheet_name=sheet_name, header=None)
-        # First column: metric name (Chinese), second column: value
-        metric_dict = {}
-        for _, row in df.iterrows():
-            chinese = row[0]
-            value = row[1]
-            if pd.isna(chinese) or pd.isna(value):
+
+def get_bank_info(sheet_name):
+    """Return (stock code, abbreviation)."""
+    name = str(sheet_name)
+    if name in BANK_MAP:
+        return BANK_MAP[name]
+    # If the sheet name is already in "code_abbreviation" format.
+    if "_" in name:
+        parts = name.split("_", 1)
+        return parts[0], parts[1]
+    # Fallback: use the name as the code and the first 3 characters as the abbreviation.
+    return name, name[:3].upper()
+
+
+# ============ 1. Read all sheets from the Excel file ============
+sheets = pd.read_excel(input_file, sheet_name=None, header=None)
+
+records = []
+
+# ============ 2. Convert to long format ============
+for sheet_name, df in sheets.items():
+    stock_code, bank_abbr = get_bank_info(sheet_name)
+    years = df.iloc[0, 1:].tolist()
+    for _, row in df.iloc[1:].iterrows():
+        indicator = row.iloc[0]
+        if pd.isna(indicator):
+            continue
+        indicator_en = get_indicator_en(indicator)
+        for year, value in zip(years, row.iloc[1:]):
+            if pd.isna(year):
                 continue
-            eng = MAP.get(chinese, chinese)  # fallback to original if not mapped
-            metric_dict[eng] = value
-        data_by_year[year] = metric_dict
+            records.append({
+                "BankCode": str(stock_code),
+                "BankAbbr": str(bank_abbr),
+                "Indicator": indicator_en,
+                "Year": int(float(year)),
+                "Value": pd.to_numeric(value, errors="coerce")
+            })
 
-    # ---------- Collect the union of all metric columns ----------
-    all_metrics = set()
-    for d in data_by_year.values():
-        all_metrics.update(d.keys())
-    all_metrics = sorted(all_metrics)
+long_df = pd.DataFrame(records)
+long_df = long_df.sort_values(["Indicator", "Year", "BankCode"]).reset_index(drop=True)
+long_df.to_csv(long_csv, index=False, encoding="utf-8-sig")
 
-    # ---------- Build DataFrame with additional calculated fields ----------
-    rows = []
-    # Deposit key names used for calculation
-    deposit_keys = ['CorpDemandDeposits', 'CorpTimeDeposits', 'RetailDemandDeposits', 'RetailTimeDeposits']
-    deposit_ratio_names = ['CorpDemandRatio', 'CorpTimeRatio', 'RetailDemandRatio', 'RetailTimeRatio']
+# ============ 3. Save the wide table ============
+wide_df = long_df.pivot_table(
+    index=["Year", "Indicator"],
+    columns="BankCode",
+    values="Value"
+).reset_index()
+wide_df.to_csv(wide_csv, index=False, encoding="utf-8-sig")
 
-    for year in sorted(data_by_year.keys()):
-        d = data_by_year[year]
-        row = {"Year": year}
-        # Add all original metrics
-        for m in all_metrics:
-            row[m] = d.get(m)   # None if missing
+print("Long table saved:", long_csv, long_df.shape)
+print("Wide table saved:", wide_csv, wide_df.shape)
 
-        # ---- 1. Calculate RORWA ----
-        core_profit = row.get('CoreNetProfit')
-        rwa = row.get('RWA')
-        if pd.notna(core_profit) and pd.notna(rwa) and rwa != 0:
-            row['RORWA'] = round(core_profit / rwa * 100, 2)
-        else:
-            row['RORWA'] = None
-
-        # ---- 2. Calculate TotalDeposits and deposit ratios ----
-        deposit_vals = [row.get(k) for k in deposit_keys]
-        # Only compute if all four deposit items are non‑missing
-        if all(pd.notna(v) for v in deposit_vals):
-            total_dep = sum(deposit_vals)
-            row['TotalDeposits'] = total_dep
-            if total_dep != 0:
-                for val, name in zip(deposit_vals, deposit_ratio_names):
-                    row[name] = round(val / total_dep * 100, 2)   # two‑decimal proportion
-            else:
-                for name in deposit_ratio_names:
-                    row[name] = None
-        else:
-            row['TotalDeposits'] = None
-            for name in deposit_ratio_names:
-                row[name] = None
-
-        rows.append(row)
-
-    df_out = pd.DataFrame(rows)
-
-    # ---------- Output CSV ----------
-    if csv_output_path is None:
-        base, _ = os.path.splitext(excel_path)
-        csv_output_path = base + "_output.csv"
-
-    df_out.to_csv(csv_output_path, index=False, encoding="utf-8-sig")
-    return df_out.sort_values('Year')
-
-def get_dataframe(excel_path, csv_path):
-    if os.path.exists(csv_path):
-        return pd.read_csv(csv_path)
-    else:
-        return convert_excel_to_csv(excel_path, csv_path)
+# ============ 4. Save one CSV per bank ============
+# Rows: Year, columns: Indicator.
+for bank_code, group in long_df.groupby("BankCode"):
+    bank_abbr = group["BankAbbr"].iloc[0]
+    pivot = group.pivot_table(
+        index="Year",
+        columns="Indicator",
+        values="Value"
+    ).reset_index()
+    pivot.columns.name = None
+    filename = f"{bank_code}_{bank_abbr}.csv"
+    filepath = os.path.join(output_dir, filename)
+    pivot.to_csv(filepath, index=False, encoding="utf-8-sig")
+    print(f"Bank CSV saved: {filepath}, shape={pivot.shape}")
