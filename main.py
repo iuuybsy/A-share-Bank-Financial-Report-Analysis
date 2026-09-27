@@ -1,70 +1,52 @@
+# -*- coding: utf-8 -*-
+"""
+Plot one figure per indicator.
+
+Reads the long-format CSV produced by data_extract.py and draws a single
+line chart (one subplot) for each indicator, saving each chart as a PNG file.
+"""
+
+import os
+import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 
-from data_extract import get_dataframe
+# ============ Configuration ============
+long_csv = "data/bank_data_long.csv"
+figure_dir = "figures"
+os.makedirs(figure_dir, exist_ok=True)
 
-def plot_data(data_name, datas, labels, title):
-    fig, ax = plt.subplots()
-    for i, data in enumerate(datas):
-        ax.plot(data['Year'].values, data[data_name].values, label=labels[i], marker='o')
-    ax.set_xlabel("years")
-    ax.set_title(title)
-    ax.grid(True)
-    plt.legend()
+plt.rcParams["font.sans-serif"] = ["SimHei"]
+plt.rcParams["axes.unicode_minus"] = False
 
-def main():
-    # ----- data extract and prepare -----
-    df_cmb = get_dataframe("600036_CMB/600036_CMB.xlsx", "600036_CMB/cmb_financials.csv")
-    df_cib = get_dataframe("601166_CIB/601166_CIB.xlsx", "601166_CIB/cib_financials.csv")
-    df_cncb = get_dataframe("601998_CNCB/601998_CNCB.xlsx", "601998_CNCB/cncb_financials.csv")
-    df_icbc = get_dataframe("601398_ICBC/601398_ICBC.xlsx", "601398_ICBC/icbc_financials.csv")
-    df_nbcb = get_dataframe("002142_NBCB/002142_NBCB.xlsx", "002142_NBCB/nbcb_financials.csv")
+# ============ Read the long-format table ============
+df = pd.read_csv(long_csv, encoding="utf-8-sig")
 
-    data = [df_cmb, df_cib, df_cncb, df_icbc, df_nbcb]
-    labels = ["CMB", "CIB", "CNCB", "ICBC", "NBCB"]
+indicators = sorted(df["Indicator"].unique())
 
-    # ----- income and profit -----
-    # plot_data("OperatingIncome", data, labels, "Operating Income")
-    # plot_data("CoreNetProfit", data, labels, "Core Net Profit")
-    # plot_data("DilutedEPS", data, labels, "Diluted EPS")
-    # plot_data("CoreEPS", data, labels, "CoreEPS")
-    plot_data("ROA", data, labels, "ROA(%)")
-    plot_data("CoreROE", data, labels, "Core ROE(%)")
-    plot_data("NIS", data, labels, "NIS(%)")
-    plot_data("NIM", data, labels, "NIM(%)")
-    plot_data("RORWA", data, labels, "RORWA(%)")
-    plot_data("NonIIRatio", data, labels, "Non-Interest Income Ratio(%)")
-    plot_data("CostIncomeRatio", data, labels, "Cost Income Ratio(%)")
+# ============ Plot one subplot per image ============
+for indicator in indicators:
+    # Create a new figure containing a single subplot.
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # ----- assets structure -----
-    # plot_data("TotalAssets", data, labels, "Total Assets")
-    # plot_data("TotalLiabilities", data, labels, "Total Liabilities")
-    # plot_data("Equity", data, labels, "Equity")
-    # plot_data("NAVPS", data, labels, "NAVPS")
-    # plot_data("TotalCapital", data, labels, "Total Capital")
-    # plot_data("CoreTier1Capital", data, labels, "Core Tier 1 Capital")
-    plot_data("CET1", data, labels, "CET1 CAR(%)")
-    plot_data("Tier1CAR", data, labels, "Tier 1 CAR(%)")
-    plot_data("CAR", data, labels, "Capital Adequacy Ratio(%)")
+    plot_df = df[df["Indicator"] == indicator].sort_values("Year")
+    sns.lineplot(
+        data=plot_df,
+        x="Year",
+        y="Value",
+        hue="BankAbbr",
+        marker="o",
+        ax=ax
+    )
+    ax.set_title(indicator, fontsize=14)
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Value")
+    ax.grid(alpha=0.3)
+    ax.legend(title="Bank", fontsize=9, title_fontsize=10)
 
-    # ----- deposit structure -----
-    # plot_data("TotalDeposits", data, labels, "Total Deposits")
-    plot_data("CorpDemandRatio", data, labels, "Corp Demand Deposit Ratio(%)")
-    plot_data("CorpTimeRatio", data, labels, "Corp Time Deposit Ratio(%)")
-    plot_data("RetailDemandRatio", data, labels, "Retail Demand Deposit Ratio(%)")
-    plot_data("RetailTimeRatio", data, labels, "Retail Time Deposit Ratio(%)")
-
-    # ----- loan structure -----
-    # plot_data("GrossLoans", data, labels, "Gross Loans")
-    # plot_data("NPL", data, labels, "NPL")
-    plot_data("NPLRatio", data, labels, "NPL Ratio(%)")
-    plot_data("ProvisionCoverage", data, labels, "Provision Coverage(%)")
-    # plot_data("LoanLossReserve", data, labels, "Loan Loss Reserve")
-    plot_data("NormalMigRate", data, labels, "Normal Mig Rate(%)")
-    plot_data("SpecialMigRate", data, labels, "Special Mig Rate(%)")
-    plot_data("SubstandardMigRate", data, labels, "Substandard Mig Rate(%)")
-    plot_data("DoubtfulMigRate", data, labels, "Doubtful Mig Rate(%)")
-
-    plt.show()
-
-if __name__ == "__main__":
-    main()
+    # Save each indicator as its own image file.
+    fig.tight_layout()
+    output_path = os.path.join(figure_dir, f"{indicator}.png")
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("Saved figure:", output_path)
