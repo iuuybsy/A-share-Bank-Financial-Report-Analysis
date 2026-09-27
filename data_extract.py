@@ -23,31 +23,31 @@ INDICATOR_MAP = {
     "ROA": "ROA",
     "ROE": "ROE",
     "RORWA": "RORWA",
-    "成本收入比": "CIR",
-    "营业收入增速": "OIYoY",
-    "扣非归母净利润增速": "AdjNPYoY",
-    "拨备前利润增速": "PPOPYoY",
+    "成本收入比": "Cost-to-Income Ratio",
+    "营业收入增速": "Operating Income Growth Rate",
+    "扣非归母净利润增速": "Recurring Net Profit Growth Rate",
+    "拨备前利润增速": "Pre-provision Profit Growth Rate",
     "非息收入占比": "NIIR",
     # Asset quality
     "不良贷款率": "NPL",
     "不良生成率": "NPLG",
     "拨备覆盖率": "PCR",
     "拨贷比": "LLR",
-    "信贷成本": "CC",
+    "信贷成本": "Credit Cost",
     # Capital adequacy
     "资本充足率": "CAR",
-    "核心一级资本充足率": "CET1",
+    "核心一级资本充足率": "CET1 CAR",
     "杠杆率": "LR",
     # Scale / growth
-    "总资产增速": "TAYoY",
-    "贷款增速": "TLYoY",
-    "存款增速": "TDYoY",
-    "存款成本率": "DepCost",
-    "贷款收益率": "LoanYield",
+    "总资产增速": "Total Assets Growth Rate",
+    "贷款增速": "Loan Growth Rate",
+    "存款增速": "Deposit Growth Rate",
+    "存款成本率": "Deposit Cost Rate",
+    "贷款收益率": "Loan Yield",
     # Per share / dividends
     "EPS": "EPS",
     "BPS": "BPS",
-    "股息率": "DivYield",
+    "股息率": "Dividend Yield",
 }
 
 # ============ Bank mapping: sheet name -> (stock code, abbreviation) ============
